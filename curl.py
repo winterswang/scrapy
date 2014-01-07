@@ -21,7 +21,9 @@ class Curl:
             errno, errstr = error
             print 'an error occured:',errstr
 
-        return crl.fp.getvalue()
+        res = crl.fp.getvalue()
+        crl.close()
+        return res
 
     def post(self,post_data_dic):
         
@@ -46,4 +48,6 @@ class Curl:
         crl.setopt(crl.WRITEFUNCTION, crl.fp.write)
         crl.perform()
  
-        return crl.fp.getvalue()
+        res = crl.fp.getvalue()
+        crl.close()
+        return res
