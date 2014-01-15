@@ -23,39 +23,24 @@ class soufun_per_spider(CrawlSpider):
 		Rule(SgmlLinkExtractor(allow=('/chushou/.*','/shou/.*' )), callback='parse_item_house')
 	]
 
-	def __init__(self,my_setting, level=None, *args, **kwargs):
+	def __init__(self, level=None, *args, **kwargs):
 		super(soufun_per_spider, self).__init__(*args, **kwargs)
 		dispatcher.connect(self.spider_closed, signals.spider_closed)
-		self.my_setting = my_setting
 
-	@classmethod
-	def from_crawler(cls, crawler):
-		settings = crawler.settings
-		my_setting = {
-					"host":settings.get("MYSQL_HOST"),
-					"dbname":settings.get("MYSQL_DBNAME"),
-					"user":settings.get("MYSQL_USER"),
-					"passwd":settings.get("MYSQL_PASSWD")
-					}		
-		return cls(my_setting)
 
 	def spider_closed(self, spider):
 
 		if self.start_urls:
 			try:
-				conn=MySQLdb.connect(
-					host=self.my_setting['host'],
-					user=self.my_setting['user'],
-					passwd=self.my_setting['passwd'],
-					db=self.my_setting['dbname'],
-					port=3306,charset='utf8'
-					)
+
+				conn=MySQLdb.connect(host='127.0.0.1',user='root',passwd='ikuaizu@jia205',db='house',port=3306,charset='utf8')
 				cur=conn.cursor()
 				cur.execute("update agent_store set is_finish = 1 where store_url=%s",self.start_urls)
 				conn.commit()
 				cur.close()
-				conn.close()
-				r=urllib.urlopen("http://agent.vsoufang.cn/custom/sendmsg?agent_open_id=%s",self.agent_open_id)					
+				dicts ={'agent_open_id':self.agent_open_id,'store_url':self.start_urls[0]}
+				data = urllib.urlencode(dicts)
+				r=urllib.urlopen("http://agent.vsoufang.cn/custom/sendmsg",data)	
 			except MySQLdb.Error,e:
 				print "Mysql Error %d: %s" % (e.args[0], e.args[1])
 
@@ -71,13 +56,7 @@ class soufun_per_spider(CrawlSpider):
     # update the waiting status  to synchronizing status
 	def getData(self):
 		try:
-			conn=MySQLdb.connect(
-					host=self.my_setting['host'],
-					user=self.my_setting['user'],
-					passwd=self.my_setting['passwd'],
-					db=self.my_setting['dbname'],
-					port=3306,charset='utf8'
-				)
+			conn=MySQLdb.connect(host='127.0.0.1',user='root',passwd='ikuaizu@jia205',db='house',port=3306,charset='utf8')
 			cur=conn.cursor()
 			cur.execute('select store_url,check_status,agent_open_id from agent_store where is_finish = 0 order by check_status limit 0,1')
 			result=cur.fetchone()
@@ -120,7 +99,6 @@ class soufun_per_spider(CrawlSpider):
 	def getHouseTpye(self,url):
 		pattern = re.compile(r'/(\w+).sh.soufun.com/')
 		match = pattern.search(url)
-		types = match.group(1)
 		if match:
 			types = match.group(1)
 			if match.group(1) == 'esf':

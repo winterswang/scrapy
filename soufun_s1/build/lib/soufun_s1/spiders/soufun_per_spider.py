@@ -1,15 +1,19 @@
 # encoding: utf-8
 from scrapy.contrib.linkextractors.sgml import SgmlLinkExtractor
+from scrapy import signals
+from scrapy.xlib.pydispatch import dispatcher
 from scrapy.contrib.spiders import CrawlSpider, Rule
 from scrapy.selector import HtmlXPathSelector
 from HTMLParser import HTMLParser
-from soufun_s1.items import SoufunItem
+from soufun_s1.items import SoufunItem,ImageItem
 from scrapy import log
 from scrapy.http import Request
+import urllib2,urllib,httplib
 import urlparse
 import MySQLdb
 import sys
 import re
+
 class soufun_per_spider(CrawlSpider):
 	name = "soufunper"
 	allowed_domains = ["soufun.com"]
@@ -18,33 +22,78 @@ class soufun_per_spider(CrawlSpider):
 		Rule(SgmlLinkExtractor(allow=('/agent/agentnew/aloneesfhlist.aspx.*','/agent/agent/AloneHouseList.aspx','/Agent/AgentNew/AloneEsfHList.aspx.*')), follow=True),
 		Rule(SgmlLinkExtractor(allow=('/chushou/.*','/shou/.*' )), callback='parse_item_house')
 	]
+
+	def __init__(self,my_setting, level=None, *args, **kwargs):
+		super(soufun_per_spider, self).__init__(*args, **kwargs)
+		dispatcher.connect(self.spider_closed, signals.spider_closed)
+		self.my_setting = my_setting
+
+	@classmethod
+	def from_crawler(cls, crawler):
+		settings = crawler.settings
+		my_setting = {
+					"host":settings.get("MYSQL_HOST"),
+					"dbname":settings.get("MYSQL_DBNAME"),
+					"user":settings.get("MYSQL_USER"),
+					"passwd":settings.get("MYSQL_PASSWD")
+					}		
+		return cls(my_setting)
+
+	def spider_closed(self, spider):
+
+		if self.start_urls:
+			try:
+				conn=MySQLdb.connect(
+					host=self.my_setting['host'],
+					user=self.my_setting['user'],
+					passwd=self.my_setting['passwd'],
+					db=self.my_setting['dbname'],
+					port=3306,charset='utf8'
+					)
+				cur=conn.cursor()
+				cur.execute("update agent_store set is_finish = 1 where store_url=%s",self.start_urls)
+				conn.commit()
+				cur.close()
+				conn.close()
+				r=urllib.urlopen("http://agent.vsoufang.cn/custom/sendmsg?agent_open_id=%s",self.agent_open_id)					
+			except MySQLdb.Error,e:
+				print "Mysql Error %d: %s" % (e.args[0], e.args[1])
+
 	def start_requests(self):
 		result = self.getData()
-		for l in result:
-			request = Request(l, dont_filter=True)
+		if result:
+			request = Request(result[0], dont_filter=True)
+			self.start_urls.append(result[0])
+			self.agent_open_id = result[2]
 			yield request
-
+    
+    # return the store_url,agent_open_id,check_status of data which is  waiting for synchroniz 
+    # update the waiting status  to synchronizing status
 	def getData(self):
 		try:
-			conn=MySQLdb.connect(host='192.168.1.99',user='root',passwd='ikuaizu@205',db='house',port=3306,charset='utf8')
+			conn=MySQLdb.connect(
+					host=self.my_setting['host'],
+					user=self.my_setting['user'],
+					passwd=self.my_setting['passwd'],
+					db=self.my_setting['dbname'],
+					port=3306,charset='utf8'
+				)
 			cur=conn.cursor()
-			cur.execute('select store_url,check_status from agent_store order by check_status limit 0,5')
-			result=cur.fetchall()
-			url = []
-			for u in result:
-				url.append(u[0])
-				check_status = int(u[1])+1
-				cur.execute("update agent_store set check_status =%s where store_url=%s",(check_status,u[0]))
-			conn.commit()
+			cur.execute('select store_url,check_status,agent_open_id from agent_store where is_finish = 0 order by check_status limit 0,1')
+			result=cur.fetchone()
+			if result:
+				check_status = int(result[1])+1
+				cur.execute("update agent_store set check_status =%s,update_count =0,insert_count=0,is_finish = 2 where store_url=%s",(check_status,result[0]))
+				conn.commit()
 			cur.close()
 			conn.close()
-			return url
+			return result
 		except MySQLdb.Error,e:
 			print "Mysql Error %d: %s" % (e.args[0], e.args[1])
 
 	def parse_item_house(self, response):
 		item = SoufunItem()		
-		item['houseid']     = self.getHouseId(response.url)
+		item['house_id']     = self.getHouseId(response.url)
 		item['title']       = self.getHouseTitle(response)
 		item['agent_tel']   = self.getAgentTelephone(response)
 		item['pic_list']    = self.getHousePicList(response)	
@@ -54,17 +103,34 @@ class soufun_per_spider(CrawlSpider):
 		item['types']		= self.getHouseTpye(response.url)
 		item['location']	= self.getHouseLocation(response)
 		item['labels']      = self.getHouseLabels(response)
-		return item
-		print response.url
+		item['store_url']   = self.start_urls[0]
+		item['open_id']      = self.agent_open_id
+ 		return item
+
+	def getAgentStore(self,response):
+		hxs = HtmlXPathSelector(response)
+		xnode = '//dt[@id="esfshxq_201"]/a'
+		results= hxs.xpath(xnode)
+		agent_store = ''
+		if results:
+			agent_store = results[len(results)-1].xpath('@href').extract()[0].strip()
+			print agent_store
+		return agent_store	
 
 	def getHouseTpye(self,url):
-		pattern = re.compile(r'/(\w+).sh.soufun.com/(\d+)_')
+		pattern = re.compile(r'/(\w+).sh.soufun.com/')
 		match = pattern.search(url)
-		types = ''
+		types = match.group(1)
 		if match:
-			types =  match.group(1)
-			if types == 'esf' and match.group(2) == 10:
-				return 'house'
+			types = match.group(1)
+			if match.group(1) == 'esf':
+				pattern = re.compile(r'http://esf.sh.soufun.com/chushou/(\d+)_')
+				match = pattern.search(url)
+				if match:
+					if match.group(1) == '3':
+						types =  'house'
+					if match.group(1) == '10':
+						types = 'villa'
 		return types
 
 	def getHouseId(self,url):
@@ -97,14 +163,14 @@ class soufun_per_spider(CrawlSpider):
 		hxs = HtmlXPathSelector(response)
 		xnode = '//div[@class = "describe mt10"]//img[contains(@src,"jpg")]//@src'
 		results = hxs.xpath(xnode)
-		L = []
+		items = []
 		for result in results:
-			# item = ImageItem()
+			item = ImageItem()
 			image_relative_url = result.extract()
-	        # image_absolute_url = urlparse.urljoin(response.url, image_relative_url.strip())
-	        # item['image_urls'] = [image_absolute_url]
-			L.append(image_relative_url)
-		return L 
+			image_absolute_url = urlparse.urljoin(response.url, image_relative_url.strip())
+			item['image_urls'] = [image_absolute_url]
+			items.append(item)
+		return items 
 
 	def getHouseDescription(self,response):
 		hxs = HtmlXPathSelector(response)
@@ -167,7 +233,10 @@ class soufun_per_spider(CrawlSpider):
 	def strip_tags(self,html):
 		s = MLStripper()
 		s.feed(html)
-		return s.get_data()		
+		return s.get_data()
+
+	def __str__(self):
+		return "ProductSpider"		
 
 class MLStripper(HTMLParser):
 	def __init__(self):

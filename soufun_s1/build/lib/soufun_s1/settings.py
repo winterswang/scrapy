@@ -13,8 +13,12 @@ NEWSPIDER_MODULE = 'soufun_s1.spiders'
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
 #USER_AGENT = 'soufun_s1 (+http://www.yourdomain.com)'
+IMAGE_ADDRESS = 'housephoto/spiders1/full/'
+IMAGES_STORE = '/home/stephen/vsfoufang/kz_www/apps/apiport/wwwroot/data/attachment/housephoto/spiders1'
 ITEM_PIPELINES = [
     'soufun_s1.pipelines.SQLHousePipeline',
+    'soufun_s1.pipelines.MyImagesPipeline',
+    'soufun_s1.pipelines.SQLAgentPipeline',
 ]
 
 MYSQL_HOST = '192.168.1.99'

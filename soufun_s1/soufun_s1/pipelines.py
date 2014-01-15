@@ -88,8 +88,9 @@ class SQLHousePipeline(object):
         result = tx.fetchone()
         # if find the result by agent_open_id, then ,update the data,the column now can specify the house data is new or have sold 
         if result:
+            data.append(item['house_id'])
             tx.execute(
-                "update house_soufun set house_id=%s,title=%s, description=%s, agent_tel=%s,url=%s,house_type=%s,labels=%s,location=%s,createtime=%s,store_url=%s,lat=%s,lng=%s where house_id=%s" ,data
+                "update house_soufun set house_id=%s,title=%s, description=%s, agent_tel=%s,url=%s,house_type=%s,labels=%s,location=%s,createtime=%s,store_url=%s,lat=%s,lng=%s where agent_open_id =%s and house_id=%s" ,data
             )
             self.update_agent_store_updatecount(tx,item['store_url'])
             log.msg("house updated in db: %s" % item, level=log.DEBUG)

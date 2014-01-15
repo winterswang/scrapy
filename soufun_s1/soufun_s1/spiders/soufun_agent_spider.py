@@ -79,12 +79,12 @@ class soufun_agent_spider(CrawlSpider):
 		if ll: 
 			city = ll.group(1)
 			if city == 'sh':
-				return 'shanghai'
+				return '上海市'
 			if city == 'gz':
-				return 'guangzhou'
+				return '广州市'
 			if city == 'sz':
-				return 'shenzhen'
+				return '深圳市'
 			else:
 				return city
 		else:
-			return 'beijing'
+			return '北京市'

@@ -6,7 +6,7 @@
 from scrapy.item import Item, Field
 
 class SoufunItem(Item):
-	houseid     = Field()
+	house_id     = Field()
 	title       = Field()
 	agent_tel   = Field()
 	description = Field()
@@ -17,3 +17,19 @@ class SoufunItem(Item):
 	url         = Field()
 	types       = Field()
 	location    = Field()
+	store_url   = Field()
+	open_id     = Field()
+
+class ImageItem(Item):
+    image_urls  = Field()
+    images      = Field()
+
+class AgentItem(Item):
+	name        = Field()
+	agent_tel   = Field()
+	company     = Field()
+	circle      = Field()
+	head_url    = Field()
+	store_name  = Field()
+	store_url	= Field()
+	city        = Field()
