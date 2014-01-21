@@ -18,6 +18,7 @@ class soufun_per_spider(CrawlSpider):
 	name = "soufunper"
 	allowed_domains = ["soufun.com"]
 	start_urls = []
+	url = 'a'
 	rules = [
 		Rule(SgmlLinkExtractor(allow=('/agent/agentnew/aloneesfhlist.aspx.*','/agent/agent/AloneHouseList.aspx','/Agent/AgentNew/AloneEsfHList.aspx.*')), follow=True),
 		Rule(SgmlLinkExtractor(allow=('/chushou/.*','/shou/.*' )), callback='parse_item_house')
@@ -26,17 +27,24 @@ class soufun_per_spider(CrawlSpider):
 	def __init__(self, level=None, *args, **kwargs):
 		super(soufun_per_spider, self).__init__(*args, **kwargs)
 		dispatcher.connect(self.spider_closed, signals.spider_closed)
+		# self.url = url
+
+	@classmethod
+	def from_settings(cls,settings):
+		cls.url = settings.get("IMAGES_STORE")
+		return cls(settings.get("IMAGES_STORE"))
 
 	def spider_closed(self, spider):
-
+		print "xxxxxxxxxxxxxxxxxxxxx"+self.url		
 		if self.start_urls:
 			try:
-
+				
 				conn=MySQLdb.connect(host='192.168.1.99',user='root',passwd='ikuaizu@205',db='house',port=3306,charset='utf8')
 				cur=conn.cursor()
 				cur.execute("update agent_store set is_finish = 1 where store_url=%s",self.start_urls)
 				conn.commit()
 				cur.close()
+				conn.close()
 				dicts ={'agent_open_id':self.agent_open_id,'store_url':self.start_urls[0]}
 				data = urllib.urlencode(dicts)
 				r=urllib.urlopen("http://agent.vsoufang.cn/custom/sendmsg",data)	
