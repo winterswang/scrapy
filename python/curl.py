@@ -1,4 +1,3 @@
-import urllib
 import pycurl
 import StringIO
 
@@ -21,9 +20,7 @@ class Curl:
             errno, errstr = error
             print 'an error occured:',errstr
 
-        res = crl.fp.getvalue()
-        crl.close()
-        return res
+        return crl.fp.getvalue()
 
     def post(self,post_data_dic):
         
@@ -48,14 +45,4 @@ class Curl:
         crl.setopt(crl.WRITEFUNCTION, crl.fp.write)
         crl.perform()
  
-        res = crl.fp.getvalue()
-        crl.close()
-        return res
-
-    def get_url(self):
-        return self.url
-
-    def set_url(self,url):
-        self.url = url
-
-
+        return crl.fp.getvalue()
